@@ -1,1 +1,15 @@
+{
+  "name": "Cek Ruang Ujian dan Juri",
+  "short_name": "Cek Ruang",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef2ef",
+  "theme_color": "#0f3d33",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
 
