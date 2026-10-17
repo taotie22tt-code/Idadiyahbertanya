@@ -1,2 +1,8 @@
 name = "idadiyahbertanya"
+main = "server.js"
 compatibility_date = "2026-10-17"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
