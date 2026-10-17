@@ -1,1 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Cek Ruang Ujian dan Juri</title>
+<style>
+:root{--ink:#12241f;--forest:#0f3d33;--amber:#f2b134;--paper:#eef2ef;--card:#fff;--line:#d3dbd6;--muted:#53655f;--err:#a4261c;--ok:#17663f}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 system-ui,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom,0)}
+header{background:var(--forest);color:#fff;padding:calc(12px + env(safe-area-inset-top,0)) 16px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:1.1rem;margin:0;font-weight:700}
+.pill{font-size:.8rem;padding:4px 10px;border-radius:99px;font-weight:600;background:#fff;color:var(--ink)}
+.pill.on{background:var(--amber)}
+main{max-width:560px;margin:0 auto;padding:16px;display:grid;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+label{display:block;font-weight:600;margin-bottom:6px}
+input[type=text],input[type=password]{width:100%;font:inherit;font-size:1.4rem;padding:12px;border:2px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+#id{letter-spacing:.06em}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+button{font:inherit;font-weight:600;min-height:48px;padding:0 16px;border-radius:8px;border:2px solid var(--forest);background:var(--forest);color:#fff;cursor:pointer;flex:1 1 auto}
+button.sec{background:#fff;color:var(--forest)}
+button:disabled{opacity:.5}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+video{width:100%;border-radius:8px;margin-top:12px;background:#000;max-height:50vh}
+.muted{color:var(--muted);font-size:.9rem;margin:.25rem 0}
+.err{color:var(--err);font-weight:600;margin:.25rem 0}
+.ok{color:var(--ok);font-weight:600;margin:.25rem 0}
+.res h2{margin:0;font-size:1.3rem}
+.res .id{margin:2px 0 14px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:1.05rem}
+.room{background:var(--forest);color:var(--amber);border-radius:8px;padding:14px 16px}
+.room .lbl,.juri .lbl{display:block;font-size:.85rem;opacity:.85}
+.room strong{font-size:clamp(1.7rem,9vw,2.6rem);line-height:1.1;font-weight:800;word-break:break-word}
+.juri{border:2px solid var(--forest);border-radius:8px;padding:10px 16px;margin-top:8px}
+.juri strong{font-size:1.8rem}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:14px 0}
+dt{color:var(--muted)}dd{margin:0;font-weight:600;word-break:break-word}
+summary{font-weight:600;cursor:pointer;min-height:32px}
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:8px 0}
+td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
+.scroll{overflow-x:auto}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><h1>Cek Ruang Ujian dan Juri</h1><span id="net" class="pill">Online</span></header>
+<main>
+  <section class="card" id="login" hidden>
+    <form id="lf" autocomplete="off">
+      <label for="code">Kode akses</label>
+      <input type="password" id="code" autocomplete="current-password">
+      <div class="row"><button type="submit">Masuk</button></div>
+      <p id="lmsg" class="err"></p>
+    </form>
+  </section>
+
+  <div id="app" hidden style="display:grid;gap:14px">
+    <section class="card">
+      <form id="f" autocomplete="off">
+        <label for="id">ID PPS</label>
+        <input type="text" id="id" inputmode="numeric" maxlength="40" placeholder="Contoh: 14451011" enterkeyhint="search">
+        <div class="row">
+          <button type="submit">Cari</button>
+          <button type="button" class="sec" id="scan">Scan Barcode/QR</button>
+          <button type="button" class="sec" id="clr">Hapus</button>
+        </div>
+      </form>
+      <div id="cam" hidden>
+        <video id="vid" playsinline muted></video>
+        <div class="row"><button type="button" class="sec" id="stop">Tutup kamera</button></div>
+      </div>
+    </section>
+
+    <section id="out" aria-live="polite"></section>
+
+    <section class="card">
+      <p id="syncmsg" style="margin:0 0 4px;font-weight:600"></p>
+      <p id="syncsub" class="muted"></p>
+      <div class="row"><button type="button" class="sec" id="syncbtn">Sinkronkan sekarang</button><button type="button" class="sec" id="logout">Keluar</button></div>
+    </section>
+
+    <details class="card" id="adm" hidden>
+      <summary>Impor dan ekspor data (admin)</summary>
+      <p class="muted">Pilih file Excel dengan kolom A–K seperti DATA_TES (.xlsx atau .xlsm). Jumlah baris boleh berbeda dari sebelumnya. Data aktif diganti seluruhnya setelah Anda mengonfirmasi, lalu semua perangkat akan menerima versi baru saat sinkronisasi.</p>
+      <input type="file" id="file" accept=".xlsx,.xlsm">
+      <div id="prev"></div>
+      <div class="row"><button type="button" id="apply" hidden>Publikasikan data baru</button></div>
+      <div class="row">
+        <button type="button" class="sec" id="export">Ekspor data aktif ke Excel</button>
+        <button type="button" class="sec" id="hist">Riwayat impor</button>
+      </div>
+      <div id="histout"></div>
+    </details>
+  </div>
+</main>
+
+<script type="module">
+import * as Core from './core.js';
+
+const XL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+const ZX = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+const DETAIL = [['DOM','Dom'],['KELAS BARU','Kelas Baru'],['GURU BARU','Guru Baru'],['POS','Pos'],['KELAS PAGI','Kelas Pagi'],['KET TES','Keterangan Tes']];
+const GRANT_DAYS = 7;
+const $ = id => document.getElementById(id);
+let map = new Map(), local = null, role = null, stream = null, reader = null, timer = null, pending = null, syncing = false;
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function msg(kind, text) { const o = $('out'); o.textContent = ''; o.append(el('p', kind, text)); }
+function loadScript(src) {
+  return new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = src; s.crossOrigin = 'anonymous';
+    s.onload = ok; s.onerror = () => no(new Error('gagal memuat'));
+    document.head.appendChild(s);
+  });
+}
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  let data = null; try { data = await r.json(); } catch (e) {}
+  return { ok: r.ok, status: r.status, data: data || {} };
+}
+
+/* ---------- Penyimpanan lokal (IndexedDB) ---------- */
+function openDB() {
+  return new Promise((ok, no) => {
+    const r = indexedDB.open('idpps-data', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('rows', { keyPath: 'IDPPS' }); d.createObjectStore('meta'); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+  });
+}
+async function loadLocal() {
+  const d = await openDB();
+  return new Promise((ok, no) => {
+    const t = d.transaction(['rows', 'meta']);
+    const a = t.objectStore('rows').getAll(), m = t.objectStore('meta').get('active');
+    t.oncomplete = () => ok({ rows: a.result, meta: m.result || null }); t.onerror = () => no(t.error);
+  });
+}
+async function metaGet(k) { const d = await openDB(); return new Promise(ok => { const q = d.transaction('meta').objectStore('meta').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); }
+async function metaPut(k, v) { const d = await openDB(); return new Promise(ok => { const t = d.transaction('meta', 'readwrite'); v == null ? t.objectStore('meta').delete(k) : t.objectStore('meta').put(v, k); t.oncomplete = ok; t.onerror = ok; }); }
+// Satu transaksi: jika gagal di tengah, data lokal lama tetap utuh.
+async function replaceAll(rows, info) {
+  const d = await openDB();
+  return new Promise((ok, no) => {
+    const t = d.transaction(['rows', 'meta'], 'readwrite');
+    const s = t.objectStore('rows'); s.clear(); rows.forEach(r => s.put(r));
+    t.objectStore('meta').put(info, 'active');
+    t.oncomplete = ok; t.onerror = () => no(t.error); t.onabort = () => no(t.error || new Error('batal'));
+  });
+}
+
+/* ---------- Status ---------- */
+function setNet() { const on = navigator.onLine, p = $('net'); p.textContent = on ? 'Online' : 'Offline'; p.className = 'pill ' + (on ? 'on' : 'off'); }
+function fmt(ts) { return new Date(ts).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }); }
+function setSync(state) {
+  const v = local ? local.version : null;
+  const t = {
+    ok: ['Dataset terbaru (versi ' + v + ')', local ? local.count + ' peserta, sinkron ' + fmt(local.syncedAt) : ''],
+    busy: ['Sinkronisasi berlangsung...', ''],
+    fail: [local ? 'Pembaruan gagal. Memakai data lokal versi ' + v : 'Pembaruan gagal. Belum ada data di perangkat ini', 'Coba tekan Sinkronkan sekarang.'],
+    never: ['Belum pernah sinkronisasi', 'Pencarian offline belum tersedia. Sambungkan internet lalu sinkronkan.'],
+    old: ['Offline. Memakai data lokal versi ' + v, local ? 'Terakhir sinkron ' + fmt(local.syncedAt) : ''],
+    empty: ['Server belum punya data', 'Admin perlu mengimpor file Excel.']
+  }[state];
+  $('syncmsg').textContent = t[0]; $('syncsub').textContent = t[1];
+}
+
+/* ---------- Sinkronisasi ---------- */
+async function sync() {
+  if (syncing) return;
+  if (!navigator.onLine) return setSync(local ? 'old' : 'never');
+  syncing = true; setSync('busy');
+  try {
+    const m = await api('/api/dataset/meta');
+    if (m.status === 401) { showLogin('Sesi berakhir. Masuk lagi.'); return; }
+    if (!m.ok) throw new Error('meta');
+    if (m.data.empty) return setSync(local ? 'ok' : 'empty');
+    if (local && local.version === m.data.version && local.checksum === m.data.checksum) return setSync('ok');
+    const d = await api('/api/dataset');
+    if (!d.ok || d.data.empty) throw new Error('unduh');
+    const sum = await Core.sha256(Core.checksumText(d.data.rows));
+    if (sum !== d.data.checksum || d.data.rows.length !== d.data.count) throw new Error('checksum');
+    const info = { version: d.data.version, checksum: d.data.checksum, count: d.data.count, syncedAt: Date.now() };
+    await replaceAll(d.data.rows, info);
+    local = info; map = new Map(d.data.rows.map(r => [r.IDPPS, r])); setSync('ok');
+  } catch (e) { setSync('fail'); }
+  finally { syncing = false; }
+}
+
+/* ---------- Masuk dan mulai ---------- */
+function showLogin(note) { role = null; $('app').hidden = true; $('login').hidden = false; $('lmsg').textContent = note || ''; stopScan(); }
+function showApp() { $('login').hidden = true; $('app').hidden = false; $('adm').hidden = role !== 'admin'; }
+async function boot() {
+  try { const d = await loadLocal(); map = new Map(d.rows.map(r => [r.IDPPS, r])); local = d.meta; } catch (e) { map = new Map(); local = null; }
+  let r = null;
+  if (navigator.onLine) { try { r = await api('/api/me'); } catch (e) { r = null; } }
+  if (r && r.ok) { role = r.data.role; await metaPut('grant', { until: Date.now() + GRANT_DAYS * 864e5, role }); }
+  else if (!(r && r.status === 401)) { const g = await metaGet('grant'); if (g && g.until > Date.now() && map.size) role = g.role; }
+  if (!role) return showLogin(r && r.status === 401 ? '' : 'Perlu internet untuk masuk pertama kali.');
+  showApp(); setSync(local ? 'old' : 'never'); sync();
+}
+$('lf').onsubmit = async e => {
+  e.preventDefault();
+  $('lmsg').textContent = '';
+  try {
+    const r = await api('/api/login', { code: $('code').value });
+    if (r.ok) { $('code').value = ''; return boot(); }
+    $('lmsg').textContent = r.data.error || 'Gagal masuk.';
+  } catch (err) { $('lmsg').textContent = 'Tidak dapat menghubungi server. Periksa internet.'; }
+};
+$('logout').onclick = async () => { try { await api('/api/logout', {}); } catch (e) {} await metaPut('grant', null); showLogin(''); };
+$('syncbtn').onclick = sync;
+
+/* ---------- Pencarian ---------- */
+function show(r) {
+  const o = $('out'); o.textContent = '';
+  const c = el('article', 'card res');
+  c.append(el('h2', '', r['NAMA']), el('p', 'id', r['IDPPS']));
+  const room = el('div', 'room'); room.append(el('span', 'lbl', 'Ruang ujian'), el('strong', '', r['RUANG UJIAN']));
+  const juri = el('div', 'juri'); juri.append(el('span', 'lbl', 'Juri'), el('strong', '', r['JURI']));
+  const dl = el('dl'); DETAIL.forEach(x => dl.append(el('dt', '', x[1]), el('dd', '', r[x[0]])));
+  const b = el('button', 'sec', 'Cari peserta berikutnya'); b.onclick = reset;
+  c.append(room, juri, dl, b); o.append(c);
+}
+function reset() { $('id').value = ''; $('out').textContent = ''; $('id').focus(); }
+function doSearch(raw) {
+  const id = String(raw || '').trim();
+  if (!Core.ID_RE.test(id)) return msg('err', 'ID PPS harus 8 digit angka. Periksa kembali lalu coba lagi.');
+  if (!map.size) return msg('err', 'Belum ada data di perangkat ini. Sambungkan internet lalu sinkronkan.');
+  const r = map.get(id);
+  if (!r) return msg('err', 'Data peserta tidak ditemukan. Periksa kembali ID PPS Anda atau hubungi petugas.');
+  show(r);
+}
+$('f').onsubmit = e => { e.preventDefault(); doSearch($('id').value); };
+$('clr').onclick = reset;
+
+/* ---------- Scan kamera ---------- */
+function stopScan() {
+  clearInterval(timer); timer = null;
+  if (reader) { try { reader.reset(); } catch (e) {} reader = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $('vid').srcObject = null; $('cam').hidden = true;
+}
+function onCode(text) {
+  if (!timer && !reader) return;
+  stopScan();
+  const id = Core.extractId(text);
+  if (!id) return msg('err', 'Format barcode tidak dikenali. Ketik ID PPS secara manual.');
+  $('id').value = id; doSearch(id);
+}
+async function startScan() {
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return msg('err', 'Kamera tidak tersedia di browser ini. Ketik ID PPS secara manual.');
+  try {
+    $('cam').hidden = false; $('out').textContent = '';
+    const v = $('vid');
+    if ('BarcodeDetector' in window) {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      v.srcObject = stream; await v.play();
+      const det = new BarcodeDetector();
+      timer = setInterval(async () => { try { const r = await det.detect(v); if (r.length) onCode(r[0].rawValue); } catch (e) {} }, 300);
+    } else {
+      await loadScript(ZX);
+      reader = new ZXing.BrowserMultiFormatReader();
+      reader.decodeFromVideoDevice(undefined, 'vid', res => { if (res) onCode(res.getText()); });
+    }
+  } catch (e) {
+    stopScan();
+    msg('err', e && e.name === 'NotAllowedError' ? 'Izin kamera ditolak. Izinkan kamera di pengaturan browser, atau ketik ID PPS secara manual.' : 'Pemindaian tidak dapat dimulai. Ketik ID PPS secara manual.');
+  }
+}
+$('scan').onclick = startScan; $('stop').onclick = stopScan;
+
+/* ---------- Admin: impor, ekspor, riwayat ---------- */
+$('file').onchange = async e => {
+  const f = e.target.files[0], p = $('prev'); pending = null; $('apply').hidden = true; p.textContent = '';
+  if (!f) return;
+  if (f.size > 10 * 1024 * 1024) return p.append(el('p', 'err', 'File terlalu besar (maksimal 10 MB).'));
+  try {
+    p.append(el('p', 'muted', 'Membaca file...'));
+    await loadScript(XL);
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const name = wb.SheetNames[0];
+    const m = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
+    const v = Core.validate(m); p.textContent = '';
+    if (v.fatal) return p.append(el('p', 'err', v.fatal));
+    p.append(el('p', '', 'Sheet "' + name + '": ' + v.source + ' baris sumber, ' + v.rows.length + ' valid, ' + v.rejected.length + ' ditolak, ' + v.emptyCells + ' sel kosong.'));
+    p.append(el('p', 'muted', 'Data aktif sekarang: ' + (local ? local.count : 0) + ' peserta. File ini: ' + v.rows.length + ' peserta.'));
+    v.rejected.slice(0, 20).forEach(x => p.append(el('p', 'err', 'Baris ' + x.line + ': ' + x.reason)));
+    if (v.rejected.length > 20) p.append(el('p', 'muted', 'Dan ' + (v.rejected.length - 20) + ' baris lain.'));
+    if (!v.rows.length) return p.append(el('p', 'err', 'Tidak ada baris valid, data aktif tidak diganti.'));
+    const wrap = el('div', 'scroll'), tb = el('table'), hd = el('tr'), ks = ['IDPPS', 'NAMA', 'RUANG UJIAN', 'JURI'];
+    ks.forEach(h => hd.append(el('th', '', h))); tb.append(hd);
+    v.rows.slice(0, 5).forEach(r => { const tr = el('tr'); ks.forEach(k => tr.append(el('td', '', r[k]))); tb.append(tr); });
+    wrap.append(tb); p.append(el('p', 'muted', 'Pratinjau 5 baris pertama:'), wrap);
+    pending = { m, name: f.name, v }; $('apply').hidden = false;
+  } catch (err) {
+    p.textContent = ''; p.append(el('p', 'err', 'File tidak dapat dibaca. Pastikan formatnya .xlsx atau .xlsm yang benar dan perangkat sedang online.'));
+  }
+};
+$('apply').onclick = async () => {
+  if (!pending) return;
+  const { m, name, v } = pending;
+  if (!confirm('Ganti seluruh data aktif dengan ' + v.rows.length + ' peserta dari ' + name + '?' + (v.rejected.length ? ' ' + v.rejected.length + ' baris yang ditolak tidak akan dimuat.' : ''))) return;
+  $('apply').disabled = true;
+  try {
+    const r = await api('/api/admin/import', { fileName: name, matrix: m, confirmRejected: v.rejected.length > 0 });
+    if (!r.ok) { msg('err', r.data.error || 'Impor gagal. Data aktif tidak berubah.'); return; }
+    pending = null; $('apply').hidden = true; $('prev').textContent = ''; $('file').value = '';
+    msg('ok', 'Dipublikasikan: versi ' + r.data.previousVersion + ' menjadi versi ' + r.data.version + ', ' + r.data.count + ' peserta.');
+    await sync();
+  } catch (e) { msg('err', 'Koneksi terputus. Data aktif tidak berubah; periksa riwayat impor lalu coba lagi.'); }
+  finally { $('apply').disabled = false; }
+};
+$('export').onclick = async () => {
+  if (!map.size) return msg('err', 'Belum ada data untuk diekspor.');
+  try {
+    await loadScript(XL);
+    const num = (k, v) => ((k === 'NO' || k === 'IDPPS') && /^\d+$/.test(v) ? Number(v) : v);
+    const rows = [...map.values()].sort((a, b) => (Number(a.NO) || 0) - (Number(b.NO) || 0));
+    const ws = XLSX.utils.aoa_to_sheet([Core.HEADER, ...rows.map(r => Core.COLS.map(k => num(k, r[k])))]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.writeFile(wb, 'DATA_TES_versi_' + (local ? local.version : 0) + '.xlsx');
+  } catch (e) { msg('err', 'Ekspor gagal. Pastikan perangkat online untuk memuat pembaca Excel.'); }
+};
+$('hist').onclick = async () => {
+  const o = $('histout'); o.textContent = '';
+  try {
+    const r = await api('/api/admin/imports');
+    if (!r.ok) return o.append(el('p', 'err', r.data.error || 'Gagal memuat riwayat.'));
+    if (!r.data.imports.length) return o.append(el('p', 'muted', 'Belum ada riwayat impor.'));
+    r.data.imports.forEach(i => o.append(el('p', i.status === 'berhasil' ? 'muted' : 'err', fmt(i.created_at) + ': ' + i.file_name + ', ' + i.status + ' (' + i.valid_rows + ' valid, ' + i.rejected_rows + ' ditolak dari ' + i.source_rows + ')')));
+  } catch (e) { o.append(el('p', 'err', 'Tidak dapat menghubungi server.')); }
+};
+
+addEventListener('online', () => { setNet(); if (role) sync(); });
+addEventListener('offline', () => { setNet(); if (role) setSync(local ? 'old' : 'never'); });
+setNet(); boot();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
 
